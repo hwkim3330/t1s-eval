@@ -9,6 +9,12 @@
 > state on the Elite's own LED from firmware. VDDA was rerouted clear of the choke (§9).
 > No 4.7 µF film capacitor exists in SMD, so CCOMP stays X7R. Next: a standalone T1S node
 > board (ESP32-S3 + LAN8651 + USB-C, Zenoh on board) instead of another HAT.
+>
+> **Firmware rules, written 2026-10-01 (build-checked, not yet run on hardware; `elite-t1s-hat`
+> 2c2eb66):** §2: SPI defaults to 25 MHz and steps down to 20/12/4 by itself. §3: ID/count
+> settable over Zenoh (`t1s/<node>/config`, acked). §5: `counters` (MAC collision/error
+> counters, TC6 status, PLCA beacons). §8: `mode sniff` (receive-only, frames out of the W5500).
+> Rev C is tagged `rev-c`.
 
 Every item here comes from a measurement or a failure on the bench (2026-09-30 … 10-01),
 with the evidence next to it. The board this feeds is `elite-t1s-hat` (LAN8651 on an ESP32-S3
