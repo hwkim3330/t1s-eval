@@ -1,5 +1,15 @@
 # What the bench says the next T1S HAT (Rev C) must do
 
+> **Outcome (2026-10-01): Rev C is in `elite-t1s-hat` (commit fa23fd0, Rev B kept at tag
+> `rev-b`).** Decided for cost: **no physical switches** — node ID/count stay in firmware
+> (console, NVS, Zenoh) and termination stays an order-time choice, so §3 and §4 below were
+> *not* adopted as hardware. Found while doing it: **the LAN8651 has no LED function**
+> (PADCTRL A0SEL/A1SEL = event capture / generator only), so §5's "map DIOA0/1 to PLCA
+> status" is impossible — Rev C removed the LEDs (two extended parts fewer) and shows PLCA
+> state on the Elite's own LED from firmware. VDDA was rerouted clear of the choke (§9).
+> No 4.7 µF film capacitor exists in SMD, so CCOMP stays X7R. Next: a standalone T1S node
+> board (ESP32-S3 + LAN8651 + USB-C, Zenoh on board) instead of another HAT.
+
 Every item here comes from a measurement or a failure on the bench (2026-09-30 … 10-01),
 with the evidence next to it. The board this feeds is `elite-t1s-hat` (LAN8651 on an ESP32-S3
 T-ETH-Elite); the reference that was measured is TSN Lab's LAN8651 HAT on the same ESP32
