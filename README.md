@@ -6,8 +6,21 @@ Measured results from the 10BASE-T1S bench and what they mean for the next HAT.
 PC enp4s0 ─RJ45─ TSN Lab 10Base-T1S Converter ═10BASE-T1S═ TSN Lab LAN8651 HAT ─SPI─ ESP32-S3 (t1s_node)
 ```
 
+**2026-10-02: the PC is gone from the data path.** A second ESP32-S3 (W5500) took its place:
+
+```
+ESP32-S3 + LAN8651 HAT ═10BASE-T1S═ T1S/100BASE-TX converter ─RJ45─ ESP32-S3 + W5500
+```
+
+→ **[two-esp/REPORT.pdf](two-esp/REPORT.pdf)** ([markdown](two-esp/REPORT.md)): RTT by payload
+both ways, a 1–10 Mbit/s sweep, payload-size sweep against the 10BASE-T1S frame model,
+two-way contention, latency under load and a 60 s soak. 9.5 Mbit/s onto T1S and 9.1 off it
+with no datagram lost, 64 B RTT 2.97 ms, 0 lost in 2 × 60 s at 8 Mbit/s. Raw data in
+`two-esp/data/`, regenerate with `tools/make_duo_report.py two-esp/data/duo_suite_*.json two-esp`.
+
 | file | what |
 |---|---|
+| **[two-esp/](two-esp/REPORT.md)** | the two-ESP run above: 7 figures, PDF |
 | **[REPORT.md](REPORT.md)** | the combined report with figures (throughput by SPI clock, load sweep, latency, PLCA vs CSMA, gap histograms) |
 | **[DESIGN_LESSONS.md](DESIGN_LESSONS.md)** | requirements for the next HAT (Rev C), each with its evidence, plus acceptance tests |
 | [PLCA_vs_CSMA_20261001.md](PLCA_vs_CSMA_20261001.md) | the comparison table |
