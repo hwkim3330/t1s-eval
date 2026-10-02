@@ -17,7 +17,7 @@ RTT by payload both ways, a 1–10 Mbit/s sweep, payload-size sweep against the 
 model, two-way contention, latency under load, a 60 s soak, and **Zenoh peer to peer over UDP
 multicast with no router**. One way at a time 9.5 Mbit/s onto T1S and 9.0 off it with no
 datagram lost; 64 B UDP RTT 2.97 ms; Zenoh pub/sub RTT 5.6–6.0 ms; offered above the bus
-ceiling, the stream stalls for seconds. Raw data in `two-esp/data/`; regenerate with
+ceiling, the stream stalls for seconds — in the converter, not the node (§2.2.1). Raw data in `two-esp/data/`; regenerate with
 `tools/make_duo_report.py two-esp/data/duo_suite_20261002_160735.json two-esp`.
 
 | file | what |

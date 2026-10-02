@@ -88,7 +88,18 @@ All times in ms.
 | HAT → ESP-B (off T1S) | 10 | 8.94 | 2952 | 2952 | 0.00 % | 0 | 1090 / 2010 |
 | HAT → ESP-B (off T1S) | 8.95 | 8.96 | 2956 | 2956 | 0.00 % | 0 | 1090 / 2010 |
 
-**Overload stalls the stream.** In 2 row(s) the receiver's window is shorter than the blast: ESP-B → HAT (onto T1S) at 10.00 Mbit/s: 1.9 of 4.0 s, seq gaps 22; ESP-B → HAT (onto T1S) at 13.58 Mbit/s: 1.8 of 4.0 s, seq gaps 539. Delivery ran at the bus ceiling and then **stopped** for the rest of the blast, which is where the large loss figures at and above ~10 Mbit/s come from; the sequence gaps inside the window are the smaller part. The node received normally again in the next run. Overloading the converter's T1S side therefore costs more than the excess: the segment goes quiet for seconds. Whether the converter or the LAN8651's receive path stops is not isolated here.
+**Overload stalls the stream.** In 2 row(s) the receiver's window is shorter than the blast: ESP-B → HAT (onto T1S) at 10.00 Mbit/s: 1.9 of 4.0 s, seq gaps 22; ESP-B → HAT (onto T1S) at 13.58 Mbit/s: 1.8 of 4.0 s, seq gaps 539. Delivery ran at the bus ceiling and then **stopped** for the rest of the blast, which is where the large loss figures at and above ~10 Mbit/s come from; the sequence gaps inside the window are the smaller part. The node received normally again in the next run. Overloading the converter's T1S side therefore costs more than the excess: the segment goes quiet for seconds. §2.2.1 locates the stop.
+
+#### 2.2.1 Where the overload stall happens
+
+A separate probe (`overload_probe.py`, 2026-10-02 16:33:19) blasted the HAT unpaced from ESP-B and read the HAT's LAN8651 before and after: TC6 STATUS0/1 (receive-buffer overflow and error flags), the receive chunks still held in the chip, and the frames its driver handed up.
+
+| run | sent | received (window) | driver frames | STATUS0 / STATUS1 after | RX chunks after | PLCA beacons | then 5 Mbit/s |
+|---|---|---|---|---|---|---|---|
+| 1 | 6714 | 750 in 0.9 s | 752 | 0x0 / 0x0 | 0 | seen | 1240/1240, 0 lost |
+| 2 | 6714 | 786 in 1.0 s | 787 | 0x0 / 0x0 | 0 | seen | 1240/1240, 0 lost |
+
+STATUS0's error bits are sticky (write-1-to-clear) and this driver clears only RESETC, once, at start-up, so a zero after the run means no overflow happened during it. The LAN8651 flagged nothing: no receive overflow, no error, nothing left in its buffers, and its driver handed up exactly the frames the sink counted, while the bus kept its PLCA beacons. The frames that went missing **never reached the chip**: under sustained overload the converter stops putting frames onto T1S after about a second, and resumes once the overload ends (the 5 Mbit/s run straight after loses nothing).
 
 ![Fig. 7](fig7_gaps.png)
 
@@ -185,7 +196,7 @@ All times in ms. *pongs of ~N*: the board keeps its last 600 round trips, and pi
 ## 3. Discussion
 
 - **The T1S segment is not the limit for one-way traffic.** Paced at up to 9 Mbit/s, neither direction lost a datagram, and the unpaced HAT → ESP-B stream sits close to the model ceiling.
-- **Do not offer more than the bus.** Above the ~9.8 Mbit/s ceiling the excess is not simply dropped: the stream stalls for seconds (§2.2). A T1S edge that can be overloaded from a faster segment needs shaping at the entry (the bridge firmware's job), not just a big buffer.
+- **Do not offer more than the bus.** Above the ~9.8 Mbit/s ceiling the excess is not simply dropped: the stream stalls for seconds, and the stall is in the converter, not the node (§2.2.1). A T1S edge that can be overloaded from a faster segment needs shaping at the entry (the bridge firmware's job), not just a big buffer.
 - **The converter is the limit for two-way traffic.** Loss in §2.4 appears at a few Mbit/s total, so it is not capacity; it is the converter's own T1S transmitter. A PLCA-aware MAC-PHY on both ends (or a converter that reserves its transmit opportunities) would remove it; that is why the HAT keeps a LAN8651 rather than a PHY behind a switch.
 - **Zenoh needs no infrastructure on this segment.** Two microcontrollers formed a Zenoh network on their own over T1S + converter, with multicast discovery and no router; its cost over raw UDP is a few milliseconds of round trip and a ~1000 msg/s receive ceiling in zenoh-pico on this platform.
 - **Board latency dominates RTT.** At 64 B the bus contributes well under 0.2 ms of a ~3 ms round trip; the W5500's 1 ms polling and per-packet software dominate. An interrupt-driven W5500 (the T-ETH-Elite does not route its INT line) or a second LAN8651 node would cut it.

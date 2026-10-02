@@ -477,11 +477,42 @@ def main(path, out):
           "Delivery ran at the bus ceiling and then **stopped** for the rest of the blast, which is where the "
           "large loss figures at and above ~10 Mbit/s come from; the sequence gaps inside the window are the "
           "smaller part. The node received normally again in the next run. Overloading the converter's "
-          "T1S side therefore costs more than the excess: the segment goes quiet for seconds. Whether the "
-          "converter or the LAN8651's receive path stops is not isolated here."
+          "T1S side therefore costs more than the excess: the segment goes quiet for seconds. §2.2.1 locates "
+          "the stop."
           % (len(stalls), "; ".join("%s at %s: %.1f of %.1f s, seq gaps %s" % (
               DIRS[r["dir"]][0], ("%.2f Mbit/s" % r["blast"]["offered"]) if r["blast"].get("offered") else "max",
               r["sink"]["secs"], r["blast"]["secs"], r["sink"].get("seq_lost", "—")) for r in stalls)))
+        w("")
+    P = R.get("overload_probe")
+    if P and P.get("runs"):
+        w("#### 2.2.1 Where the overload stall happens")
+        w("")
+        w("A separate probe (`overload_probe.py`, %s) blasted the HAT unpaced from ESP-B and read the HAT's "
+          "LAN8651 before and after: TC6 STATUS0/1 (receive-buffer overflow and error flags), the receive "
+          "chunks still held in the chip, and the frames its driver handed up." % P["t"])
+        w("")
+        w("| run | sent | received (window) | driver frames | STATUS0 / STATUS1 after | RX chunks after | PLCA beacons | then 5 Mbit/s |")
+        w("|---|---|---|---|---|---|---|---|")
+        clean = True
+        for i, r in enumerate(P["runs"], 1):
+            af, sk, rc = r["after"], r["sink"], r["recovery_5mbit"]
+            clean &= af.get("status0") == 0 and af.get("status1") == 0 and af.get("rx_chunks") == 0 and \
+                abs(r["driver_rx_delta"] - sk.get("packets", 0)) <= 5
+            w("| %d | %s | %s in %.1f s | %d | 0x%x / 0x%x | %s | %s | %s/%s, %s lost |"
+              % (i, r["sent"], sk.get("packets"), sk.get("secs", 0), r["driver_rx_delta"], af.get("status0", -1),
+                 af.get("status1", -1), af.get("rx_chunks"), "seen" if af.get("plca_sts", 0) & 0x8000 else "NOT seen",
+                 rc.get("packets"), rc.get("expected"), rc.get("seq_lost")))
+        w("")
+        if clean:
+            w("STATUS0's error bits are sticky (write-1-to-clear) and this driver clears only RESETC, once, at "
+              "start-up, so a zero after the run means no overflow happened during it. "
+              "The LAN8651 flagged nothing: no receive overflow, no error, nothing left in its buffers, and its "
+              "driver handed up exactly the frames the sink counted, while the bus kept its PLCA beacons. The "
+              "frames that went missing **never reached the chip**: under sustained overload the converter "
+              "stops putting frames onto T1S after about a second, and resumes once the overload ends (the "
+              "5 Mbit/s run straight after loses nothing).")
+        else:
+            w("The LAN8651 reported flags or held data after the overload, so the receive side cannot be ruled out.")
         w("")
     w("![Fig. 7](fig7_gaps.png)")
     w("")
@@ -618,7 +649,7 @@ def main(path, out):
     w("- **The T1S segment is not the limit for one-way traffic.** Paced at up to 9 Mbit/s, neither direction "
       "lost a datagram, and the unpaced HAT → ESP-B stream sits close to the model ceiling.")
     w("- **Do not offer more than the bus.** Above the ~9.8 Mbit/s ceiling the excess is not simply dropped: the "
-      "stream stalls for seconds (§2.2). A T1S edge that can be overloaded from a faster segment needs shaping "
+      "stream stalls for seconds, and the stall is in the converter, not the node (§2.2.1). A T1S edge that can be overloaded from a faster segment needs shaping "
       "at the entry (the bridge firmware's job), not just a big buffer.")
     w("- **The converter is the limit for two-way traffic.** Loss in §2.4 appears at a few Mbit/s total, so it "
       "is not capacity; it is the converter's own T1S transmitter. A PLCA-aware MAC-PHY on both ends (or a "

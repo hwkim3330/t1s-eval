@@ -8320,5 +8320,76 @@
    }
   ],
   "remeasured": "2026-10-02 16:10:14"
+ },
+ "overload_probe": {
+  "t": "2026-10-02 16:33:19",
+  "runs": [
+   {
+    "secs": 6,
+    "sent": 6714,
+    "before": {
+     "status0": 0,
+     "status1": 0,
+     "tx_credits": 48,
+     "rx_chunks": 0,
+     "plca_sts": 32768,
+     "driver_rx": 3736
+    },
+    "after": {
+     "status0": 0,
+     "status1": 0,
+     "tx_credits": 48,
+     "rx_chunks": 0,
+     "plca_sts": 32768,
+     "driver_rx": 4488
+    },
+    "sink": {
+     "packets": 750,
+     "secs": 0.9,
+     "expected": 1027,
+     "seq_lost": 277
+    },
+    "driver_rx_delta": 752,
+    "recovery_5mbit": {
+     "packets": 1240,
+     "secs": 3.0,
+     "expected": 1240,
+     "seq_lost": 0
+    }
+   },
+   {
+    "secs": 6,
+    "sent": 6714,
+    "before": {
+     "status0": 0,
+     "status1": 0,
+     "tx_credits": 48,
+     "rx_chunks": 0,
+     "plca_sts": 32768,
+     "driver_rx": 5730
+    },
+    "after": {
+     "status0": 0,
+     "status1": 0,
+     "tx_credits": 48,
+     "rx_chunks": 0,
+     "plca_sts": 32768,
+     "driver_rx": 6517
+    },
+    "sink": {
+     "packets": 786,
+     "secs": 1.0,
+     "expected": 1075,
+     "seq_lost": 289
+    },
+    "driver_rx_delta": 787,
+    "recovery_5mbit": {
+     "packets": 1240,
+     "secs": 3.0,
+     "expected": 1240,
+     "seq_lost": 0
+    }
+   }
+  ]
  }
 }
