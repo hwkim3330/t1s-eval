@@ -12,11 +12,13 @@ PC enp4s0 ─RJ45─ TSN Lab 10Base-T1S Converter ═10BASE-T1S═ TSN Lab LAN86
 ESP32-S3 + LAN8651 HAT ═10BASE-T1S═ T1S/100BASE-TX converter ─RJ45─ ESP32-S3 + W5500
 ```
 
-→ **[two-esp/REPORT.pdf](two-esp/REPORT.pdf)** ([markdown](two-esp/REPORT.md)): RTT by payload
-both ways, a 1–10 Mbit/s sweep, payload-size sweep against the 10BASE-T1S frame model,
-two-way contention, latency under load and a 60 s soak. 9.5 Mbit/s onto T1S and 9.1 off it
-with no datagram lost, 64 B RTT 2.97 ms, 0 lost in 2 × 60 s at 8 Mbit/s. Raw data in
-`two-esp/data/`, regenerate with `tools/make_duo_report.py two-esp/data/duo_suite_*.json two-esp`.
+→ **[two-esp/REPORT.pdf](two-esp/REPORT.pdf)** ([markdown](two-esp/REPORT.md)), 10 pages, 9 figures:
+RTT by payload both ways, a 1–10 Mbit/s sweep, payload-size sweep against the 10BASE-T1S frame
+model, two-way contention, latency under load, a 60 s soak, and **Zenoh peer to peer over UDP
+multicast with no router**. One way at a time 9.5 Mbit/s onto T1S and 9.0 off it with no
+datagram lost; 64 B UDP RTT 2.97 ms; Zenoh pub/sub RTT 5.6–6.0 ms; offered above the bus
+ceiling, the stream stalls for seconds. Raw data in `two-esp/data/`; regenerate with
+`tools/make_duo_report.py two-esp/data/duo_suite_20261002_160735.json two-esp`.
 
 | file | what |
 |---|---|

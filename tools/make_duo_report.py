@@ -76,6 +76,18 @@ def loss_of(r):
     return max(0.0, 100.0 * (1 - s["packets"] / b["sent"]))
 
 
+def zenoh_abstract(R):
+    Z = R.get("zenoh") or {}
+    meds = [pct(ok(r["us"]), 50) / 1000 for r in Z.get("rtt", []) if ok(r["us"])]
+    best = max((r["sink"]["mbit"] for r in Z.get("bulk", []) if r.get("sink")), default=None)
+    if not meds:
+        return ""
+    rng = ("%.1f" % min(meds)) if round(min(meds), 1) == round(max(meds), 1) else "%.1f–%.1f" % (min(meds), max(meds))
+    return (" Zenoh ran on the same two boards **peer to peer over UDP multicast, with no router**: a pub/sub "
+            "round trip took %s ms median in either direction, and bulk puts delivered up to %.1f Mbit/s of payload."
+            % (rng, best or float("nan")))
+
+
 def main(path, out):
     R = json.load(open(path))
     os.makedirs(out, exist_ok=True)
@@ -263,6 +275,70 @@ def main(path, out):
     figs.append(("fig7_gaps", "Median and 99th-percentile inter-arrival gap at the receiver, against the "
                  "spacing the sender paced to. The receiver's histogram tops out at 2 ms."))
 
+    Z = R.get("zenoh") or {}
+    # a publisher report that never reached the console: the subscriber's sequence range says how
+    # many were put (exact unless the very last ones were lost); marked, and drawn hollow
+    # the put window is the blast duration (the same for every row), not the receiver's window
+    known = [r["blast"]["secs"] for r in Z.get("bulk", []) if r.get("blast") and r["blast"].get("secs")]
+    put_secs = statistics.median(known) if known else None
+    for r in Z.get("bulk", []):
+        k = r.get("sink") or {}
+        if not r.get("blast") and k.get("expected"):
+            sec = put_secs or k.get("secs") or 1
+            r["blast"] = {"sent": k["expected"], "size": r["size"], "secs": sec, "rate": k["expected"] / sec,
+                          "mbit": k["expected"] * r["size"] * 8 / sec / 1e6, "from_sink_seq": True}
+    if Z.get("rtt"):
+        fig, ax = plt.subplots(figsize=(3.4, 2.6))
+        for r in Z["rtt"]:
+            lab, col = DIRS[r["dir"]]
+            xs = sorted(ok(r["us"]))
+            if xs:
+                ax.step([x / 1000 for x in xs], [(k + 1) / len(xs) for k in range(len(xs))], where="post",
+                        color=col, label="Zenoh, pinged from " + ("ESP-B" if r["dir"] == "tx->node" else "HAT"))
+        for d in ("tx->node", "node->tx"):
+            rr = [r for r in R["rtt"] if r["dir"] == d and r["size"] == 64]
+            if rr and ok(rr[0]["us"]):
+                xs = sorted(ok(rr[0]["us"]))
+                ax.step([x / 1000 for x in xs], [(k + 1) / len(xs) for k in range(len(xs))], where="post",
+                        color=DIRS[d][1], ls=":", lw=1.0,
+                        label="raw UDP 64 B, from " + ("ESP-B" if d == "tx->node" else "HAT"))
+        ax.set_xlabel("round trip (ms)")
+        ax.set_ylabel("CDF")
+        ax.legend(frameon=False, fontsize=6.5, loc="lower right")
+        ax.set_title("Fig. 8  Zenoh ping/pong vs raw UDP echo")
+        save(fig, out, "fig8_zenoh_rtt")
+        figs.append(("fig8_zenoh_rtt", "Zenoh publish/subscribe round trip against the raw UDP echo."))
+    if Z.get("bulk"):
+        fig, axes = plt.subplots(1, 2, figsize=(6.9, 2.7))
+        ax, ax2 = axes
+        for d, (lab, col) in DIRS.items():
+            rows = sorted([r for r in Z["bulk"] if r["dir"] == d and r.get("blast") and r.get("sink")],
+                          key=lambda r: r["size"])
+            xs = [r["size"] for r in rows]
+            ax.plot(xs, [r["blast"]["mbit"] for r in rows], "o--", color=col, mfc="white", label=lab + ", sent")
+            ax.plot(xs, [r["sink"]["mbit"] for r in rows], "o-", color=col, label="delivered")
+            ax2.plot(xs, [r["blast"]["rate"] for r in rows], "o--", color=col, mfc="white", label=lab + ", sent")
+            ax2.plot(xs, [r["sink"]["rate"] for r in rows], "o-", color=col, label="delivered")
+        zs = sorted({r["size"] for r in Z["bulk"]})
+        for a_ in (ax, ax2):
+            a_.set_xscale("log", base=2)
+            a_.set_xticks(zs)
+            a_.set_xticklabels([str(z) for z in zs])
+            a_.minorticks_off()
+        ax.set_xlabel("Zenoh payload (bytes)")
+        ax.set_ylabel("payload rate (Mbit/s)")
+        ax.legend(frameon=False, fontsize=6.5, loc="upper left")
+        ax.set_title("(a) throughput")
+        ax2.set_xlabel("Zenoh payload (bytes)")
+        ax2.set_ylabel("messages / s")
+        ax2.axhline(1000, color=C_GREY, lw=0.7, ls="-.")
+        ax2.legend(frameon=False, fontsize=6.5, loc="lower left")
+        ax2.set_title("(b) message rate (dash-dot: 1000/s)")
+        fig.suptitle("Fig. 9  Zenoh put/subscribe bulk transfer, peer over UDP multicast, no router", y=1.02, fontsize=9)
+        save(fig, out, "fig9_zenoh_bulk")
+        figs.append(("fig9_zenoh_bulk", "Zenoh bulk publish by payload size: what the publisher put and what the "
+                     "subscriber on the other board received."))
+
     # ---- numbers for the text -----------------------------------------------------------
     def rtt_row(d, sz):
         rr = [r for r in R["rtt"] if r["dir"] == d and r["size"] == sz]
@@ -304,6 +380,7 @@ def main(path, out):
          int(max((secs_of(r) for r in R["soak"]), default=0)),
          " and ".join("%d of %d (%s)" % ((r["blast"] or {}).get("sent", 0) - r["sink"].get("packets", 0),
                                           (r["blast"] or {}).get("sent", 0), d) for d, r in soak.items())))
+    L[-1] += zenoh_abstract(R)
     w("")
     w("## 1. Setup")
     w("")
@@ -393,6 +470,19 @@ def main(path, out):
                  ("%.2f %%" % l) if l is not None else "—", s.get("reordered", "—"),
                  s.get("gap_p50", "—"), s.get("gap_p99", "—")))
     w("")
+    stalls = [r for r in R["sweep"] if (r.get("blast") or {}).get("secs") and r["sink"].get("secs") is not None
+              and r["sink"]["secs"] < 0.9 * r["blast"]["secs"] and r["sink"].get("packets")]
+    if stalls:
+        w("**Overload stalls the stream.** In %d row(s) the receiver's window is shorter than the blast: %s. "
+          "Delivery ran at the bus ceiling and then **stopped** for the rest of the blast, which is where the "
+          "large loss figures at and above ~10 Mbit/s come from; the sequence gaps inside the window are the "
+          "smaller part. The node received normally again in the next run. Overloading the converter's "
+          "T1S side therefore costs more than the excess: the segment goes quiet for seconds. Whether the "
+          "converter or the LAN8651's receive path stops is not isolated here."
+          % (len(stalls), "; ".join("%s at %s: %.1f of %.1f s, seq gaps %s" % (
+              DIRS[r["dir"]][0], ("%.2f Mbit/s" % r["blast"]["offered"]) if r["blast"].get("offered") else "max",
+              r["sink"]["secs"], r["blast"]["secs"], r["sink"].get("seq_lost", "—")) for r in stalls)))
+        w("")
     w("![Fig. 7](fig7_gaps.png)")
     w("")
     w("### 2.3 Payload size")
@@ -427,6 +517,13 @@ def main(path, out):
                                              ("%.1f %%" % l1) if l1 is not None else "—",
                                              rv["sink"].get("delivered", 0), ("%.1f %%" % l2) if l2 is not None else "—"))
     w("")
+    dips = [r for r in brows if r["mbit"] >= 2 and r["sink"].get("delivered", 0) < 0.1 * r["mbit"]]
+    if dips:
+        w("At %s Mbit/s each the converter's stream all but vanished (%s Mbit/s delivered), less than at the "
+          "levels either side; the same dip appeared in an earlier run at 3 Mbit/s, so it is a property of the "
+          "converter's arbitration at that load, not a measurement fault."
+          % (", ".join("%g" % r["mbit"] for r in dips), ", ".join("%.2f" % r["sink"].get("delivered", 0) for r in dips)))
+        w("")
     w("The HAT's stream arrives whole at every level. The stream the converter must put onto T1S loses "
       "most of its datagrams as soon as both directions are busy, even at 1–2 Mbit/s each, far below the bus "
       "capacity. That is the converter's T1S side failing to win transmit opportunities while it is receiving, "
@@ -459,14 +556,78 @@ def main(path, out):
              s.get("packets", "—"), (b.get("sent", 0) - s.get("packets", 0)) if b.get("sent") else "—",
              s.get("reordered", "—"), s.get("dup", "—")))
     w("")
+    if Z:
+        w("### 2.7 Zenoh, peer to peer with no router")
+        w("")
+        w("Both boards ran zenoh-pico in **peer mode over UDP multicast** (`udp/224.0.0.224:7447`): no zenohd, no PC. "
+          "Each board echoes the other's `test/ping/<node>` on `test/pong/<node>`; the pinging board timestamps "
+          "with `esp_timer`. RTT was taken at 50 Hz with the boards' normal Zenoh traffic running (20 Hz signal, "
+          "2 Hz hello, 1 Hz stats each); bulk transfers ran with that traffic paused.")
+        w("")
+        if Z.get("rtt"):
+            w("![Fig. 8](fig8_zenoh_rtt.png)")
+            w("")
+            w("| pinged from | pongs | min | median | p99 | max | raw UDP 64 B median | Zenoh overhead |")
+            w("|---|---|---|---|---|---|---|---|")
+            for r in Z["rtt"]:
+                v = ok(r["us"])
+                if not v:
+                    continue
+                u = rtt_row(r["dir"], 64)
+                w("| %s | %d of ~%d | %.2f | **%.2f** | %.2f | %.2f | %s | %s |"
+                  % ("ESP-B" if r["dir"] == "tx->node" else "HAT", len(v), r.get("sent_approx", 0), min(v) / 1000,
+                     pct(v, 50) / 1000, pct(v, 99) / 1000, max(v) / 1000,
+                     ("%.2f" % u["p50"]) if u else "—", ("+%.2f ms" % (pct(v, 50) / 1000 - u["p50"])) if u else "—"))
+            w("")
+            w("All times in ms. *pongs of ~N*: the board keeps its last 600 round trips, and pings sent while the "
+              "previous pong was outstanding are not all answered (each board echoes from a short queue).")
+            w("")
+        if Z.get("bulk"):
+            w("![Fig. 9](fig9_zenoh_bulk.png)")
+            w("")
+            w("| direction | payload | put (msg/s) | received (msg/s) | put (Mbit/s) | received (Mbit/s) | lost |")
+            w("|---|---|---|---|---|---|---|")
+            for d in ("tx->node", "node->tx"):
+                for r in sorted([r for r in Z["bulk"] if r["dir"] == d], key=lambda r: r["size"]):
+                    b, k = r.get("blast") or {}, r.get("sink") or {}
+                    lost = (100.0 * k["lost"] / k["expected"]) if k.get("expected") else None
+                    mark = "†" if b.get("from_sink_seq") else ""
+                    w("| %s | %d B | %s%s | %s | %s%s | %s | %s |"
+                      % (DIRS[d][0], r["size"], ("%.0f" % b["rate"]) if b else "—", mark, ("%.0f" % k["rate"]) if k else "—",
+                         ("%.2f" % b["mbit"]) if b else "—", mark, ("%.2f" % k["mbit"]) if k else "—",
+                         ("%.1f %%" % lost) if lost is not None else "—"))
+            w("")
+            if any((r.get("blast") or {}).get("from_sink_seq") for r in Z["bulk"]):
+                w("† the publisher's own report line did not reach the console; the put count is the subscriber's "
+                  "sequence range (exact unless the final messages were lost), over the blast duration of the other rows.")
+                w("")
+            caps = [r["sink"]["rate"] for r in Z["bulk"] if r.get("sink")]
+            near = sum(1 for c in caps if 950 <= c <= 1010)
+            w("**What limits it.** Puts are unpaced, so each row is what zenoh-pico itself sustains. For small payloads "
+              "the receiving side tops out at almost exactly **1000 messages/s** (%d of %d rows within 950–1010) on "
+              "*both* boards, while the same boards receive 2400+ raw UDP frames/s (§2.3). The cap therefore sits in "
+              "zenoh-pico's receive path on this port (it is not the idle-read sleep, which is 0 in this build), not "
+              "in T1S. Large payloads from ESP-B lose datagrams at an *average* rate the bus carried cleanly as paced "
+              "UDP (§2.2): unpaced puts leave the W5500 back to back at 100 Mbit/s, so the converter's buffer meets "
+              "bursts well above 10 Mbit/s (our reading; the converter exposes no drop counter). In the other "
+              "direction the HAT's SPI/TC6 path paces its puts and nothing is lost at 512 B and above."
+              % (near, len(caps)))
+            w("")
     w("## 3. Discussion")
     w("")
     w("- **The T1S segment is not the limit for one-way traffic.** Paced at up to 9 Mbit/s, neither direction "
       "lost a datagram, and the unpaced HAT → ESP-B stream sits close to the model ceiling.")
+    w("- **Do not offer more than the bus.** Above the ~9.8 Mbit/s ceiling the excess is not simply dropped: the "
+      "stream stalls for seconds (§2.2). A T1S edge that can be overloaded from a faster segment needs shaping "
+      "at the entry (the bridge firmware's job), not just a big buffer.")
     w("- **The converter is the limit for two-way traffic.** Loss in §2.4 appears at a few Mbit/s total, so it "
       "is not capacity; it is the converter's own T1S transmitter. A PLCA-aware MAC-PHY on both ends (or a "
       "converter that reserves its transmit opportunities) would remove it; that is why the HAT keeps a "
       "LAN8651 rather than a PHY behind a switch.")
+    if R.get("zenoh"):
+        w("- **Zenoh needs no infrastructure on this segment.** Two microcontrollers formed a Zenoh network on "
+          "their own over T1S + converter, with multicast discovery and no router; its cost over raw UDP is a "
+          "few milliseconds of round trip and a ~1000 msg/s receive ceiling in zenoh-pico on this platform.")
     w("- **Board latency dominates RTT.** At 64 B the bus contributes well under 0.2 ms of a ~3 ms round "
       "trip; the W5500's 1 ms polling and per-packet software dominate. An interrupt-driven W5500 (the "
       "T-ETH-Elite does not route its INT line) or a second LAN8651 node would cut it.")
