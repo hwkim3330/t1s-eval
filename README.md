@@ -20,8 +20,16 @@ datagram lost; 64 B UDP RTT 2.97 ms; Zenoh pub/sub RTT 5.6–6.0 ms; offered abo
 ceiling, the stream stalls for seconds — in the converter, not the node (§2.2.1). Raw data in `two-esp/data/`; regenerate with
 `tools/make_duo_report.py two-esp/data/duo_suite_20261002_160735.json two-esp`.
 
+**2026-10-06: two-board campaign** → **[campaign/REPORT.pdf](campaign/REPORT.pdf)** ([markdown](campaign/REPORT.md)).
+Five repeats with both boards rebooted between them (mean ± 95 % CI), an SPI service-time model fitted on
+three clocks and checked out of sample (worst error 0.2 %), CAN-like periodic messages idle and under
+load, a 15 min / 91 k-probe tail (p99.99 4.85 ms), PLCA burst, coordinator-reboot outage (1.87 s), and a
+table of what two boards cannot show. Note: the ESP32-S3 SPI runs 80 MHz / integer, so the "25 MHz" of the
+earlier reports is **26.67 MHz**.
+
 | file | what |
 |---|---|
+| **[campaign/](campaign/REPORT.md)** | the two-board campaign: repeats, SPI model check, periodic, tail, recovery |
 | **[two-esp/](two-esp/REPORT.md)** | the two-ESP run above: 7 figures, PDF |
 | **[REPORT.md](REPORT.md)** | the combined report with figures (throughput by SPI clock, load sweep, latency, PLCA vs CSMA, gap histograms) |
 | **[DESIGN_LESSONS.md](DESIGN_LESSONS.md)** | requirements for the next HAT (Rev C), each with its evidence, plus acceptance tests |
