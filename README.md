@@ -45,6 +45,7 @@ earlier reports is **26.67 MHz**.
 |---|---|
 | **[ERRATA.md](ERRATA.md)** | corrections to the earlier reports (actual SPI clock, sink-rate bias, what is and is not proven) |
 | **[campaign/](campaign/REPORT.md)** | the two-board campaign: repeats, SPI model check, periodic, tail, recovery |
+| **[plca-csma-repeated/](plca-csma-repeated/REPORT.md)** | PLCA, 5 rounds at 20 MHz with mean ± CI (CSMA/CD rounds pending: the converter's DIP) |
 | **[two-esp-20mhz/](two-esp-20mhz/REPORT.md)** | the same suite at the in-spec 20 MHz SPI clock (2026-10-06): 9 figures, PDF |
 | **[two-esp/](two-esp/REPORT.md)** | the two-ESP run at 26.67 MHz (out of spec): 9 figures, PDF |
 | **[REPORT.md](REPORT.md)** | the combined report with figures (throughput by SPI clock, load sweep, latency, PLCA vs CSMA, gap histograms) |
