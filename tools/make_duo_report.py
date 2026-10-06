@@ -643,18 +643,46 @@ def main(path, out):
                 w("† the publisher's own report line did not reach the console; the put count is the subscriber's "
                   "sequence range (exact unless the final messages were lost), over the blast duration of the other rows.")
                 w("")
-            caps = [r["sink"]["rate"] for r in Z["bulk"] if r.get("sink")]
-            near = sum(1 for c in caps if 950 <= c <= 1010)
-            w("**What limits it.** Puts are unpaced, so each row is what zenoh-pico itself sustains. For small payloads "
-              "the receiving side tops out at almost exactly **1000 messages/s** (%d of %d rows within 950–1010) on "
-              "*both* boards, while the same boards receive 2400+ raw UDP frames/s (§2.3). The cap therefore sits in "
-              "zenoh-pico's receive path on this port (it is not the idle-read sleep, which is 0 in this build), not "
-              "in T1S. Large payloads from ESP-B lose datagrams at an *average* rate the bus carried cleanly as paced "
-              "UDP (§2.2): unpaced puts leave the W5500 back to back at 100 Mbit/s, so the converter's buffer meets "
-              "bursts well above 10 Mbit/s (our reading; the converter exposes no drop counter). In the other "
-              "direction the HAT's SPI/TC6 path paces its puts and nothing is lost at 512 B and above."
-              % (near, len(caps)))
+            small = [r for r in Z["bulk"] if r["size"] <= 128 and r.get("blast") and r.get("sink")]
+            puts = [r["blast"]["put_us"] for r in Z["bulk"] if (r.get("blast") or {}).get("put_us")]
+            kept = [r for r in small if r["sink"]["rate"] >= 0.97 * r["blast"]["rate"]]
+            short = [r for r in small if r not in kept]
+            w("**What limits it.** Puts are unpaced, so each row is what zenoh-pico sustains. For small payloads the "
+              "rate is set first by the **publisher** (put / received: %s; the same boards receive 2400+ raw UDP "
+              "frames/s, §2.3). Unbatched, every put is its own UDP datagram%s, which holds small messages near "
+              "1000/s.%s Large payloads from ESP-B lose datagrams at an *average* rate "
+              "the bus carried cleanly as paced UDP (§2.2): unpaced puts leave the W5500 back to back at 100 Mbit/s, so "
+              "the converter's buffer meets bursts well above 10 Mbit/s (our reading; the converter exposes no drop "
+              "counter). In the other direction the HAT's SPI/TC6 path paces its puts."
+              % (", ".join("%s %d B: %.0f / %.0f" % (DIRS[r["dir"]][0], r["size"], r["blast"]["rate"],
+                                                       r["sink"]["rate"]) for r in small) or "—",
+                 (" and a put call takes %.0f–%.0f µs on the sender" % (min(puts), max(puts))) if puts else "",
+                 (" Where the subscriber kept up (%s) the publisher is the whole limit; where it did not (%s) the "
+                  "receiving board also drops some." % (", ".join("%s %d B" % (DIRS[r["dir"]][0], r["size"]) for r in kept) or "none",
+                                                      ", ".join("%s %d B" % (DIRS[r["dir"]][0], r["size"]) for r in short)))
+                 if short else " The subscriber kept up in every small-payload row."))
             w("")
+            if Z.get("bulk_batched"):
+                w("**With batching** (`zenoh blast … batch`: zp_batch_start/stop around the run, puts packed into "
+                  "datagrams until one is full):")
+                w("")
+                w("| direction | payload | unbatched put (msg/s) | batched put (msg/s) | put call | batched received (msg/s) | received (Mbit/s) | lost |")
+                w("|---|---|---|---|---|---|---|---|")
+                for d in ("tx->node", "node->tx"):
+                    for r in sorted([r for r in Z["bulk_batched"] if r["dir"] == d], key=lambda r: r["size"]):
+                        b_, k = r.get("blast") or {}, r.get("sink") or {}
+                        u = next((x for x in Z["bulk"] if x["dir"] == d and x["size"] == r["size"]), {})
+                        ub = (u.get("blast") or {}).get("rate") or (u.get("sink") or {}).get("rate")
+                        lost = (100.0 * k["lost"] / k["expected"]) if k.get("expected") else None
+                        w("| %s | %d B | %s | %s | %s | %s | %s | %s |"
+                          % (DIRS[d][0], r["size"], ("%.0f" % ub) if ub else "—", ("%.0f" % b_["rate"]) if b_.get("rate") else "—",
+                             ("%.0f µs" % b_["put_us"]) if b_.get("put_us") else "—", ("%.0f" % k["rate"]) if k else "—",
+                             ("%.2f" % k["mbit"]) if k else "—", ("%.1f %%" % lost) if lost is not None else "—"))
+                w("")
+                w("Batching lifts small messages several-fold because the per-datagram cost is paid once per batch; a "
+                  "payload that fills a datagram by itself gains nothing. The price is latency: a batched put waits "
+                  "until the batch is flushed, so this is for bulk, not for control messages.")
+                w("")
     w("## 3. Discussion")
     w("")
     w("- **The T1S segment is not the limit for one-way traffic.** Paced at up to 9 Mbit/s, neither direction "

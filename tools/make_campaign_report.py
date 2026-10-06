@@ -265,10 +265,14 @@ def main(path, out):
       % (R.get("t"), os.path.basename(path)))
     w("")
     st = R.get("setup", {})
-    w("**Setup.** esp32-5: ESP32-S3 + LAN8651 HAT, PLCA %s (id %s of %s), SPI %s MHz, %s. esp32-7: ESP32-S3 W5500 at %s on the "
+    spi_ask = st.get("node", {}).get("spi")
+    spi_run = st.get("node", {}).get("spi_actual") or (R.get("spi_actual") or {}).get(str(spi_ask))
+    spi_txt = ("%s MHz asked, %.2f MHz actual%s" % (spi_ask, spi_run, " (above the LAN8651's 25 MHz)" if spi_run > 25 else "")
+               if spi_run else "%s MHz" % spi_ask)
+    w("**Setup.** esp32-5: ESP32-S3 + LAN8651 HAT, PLCA %s (id %s of %s), SPI %s, %s. esp32-7: ESP32-S3 W5500 at %s on the "
       "converter's 100BASE-TX port. Converter: LAN8670 + LAN9355, ID 1 / count 0 (not coordinating). All traffic generated and "
       "measured by the two boards; Zenoh's periodic traffic paused except in its own measurements."
-      % (*(st.get("node", {}).get("plca") or ["?", "?", "?"]), st.get("node", {}).get("spi"), st.get("node", {}).get("ip"),
+      % (*(st.get("node", {}).get("plca") or ["?", "?", "?"]), spi_txt, st.get("node", {}).get("ip"),
          st.get("tx", {}).get("ip")))
     w("")
     w("## 1. Repeatability (%d runs, both boards rebooted between runs)" % len(reps))
@@ -301,7 +305,7 @@ def main(path, out):
         else:
             w("- **%s**: %.3f ± %.3f %s." % (r[0], r[3], r[4], r[1]))
     w("")
-    w("## 2. SPI clock: model fitted on 12/20/25 MHz, checked on 15/18/22 MHz")
+    w("## 2. SPI clock: model fitted on the 12/20/25 MHz settings, checked on 15/18/22 MHz")
     w("")
     w("![C2](c2_spi_model.png)")
     w("")
@@ -329,11 +333,19 @@ def main(path, out):
             w("Held-out error: mean **%.1f %%**, worst **%.1f %%**." % (statistics.mean(errs), max(errs)))
             w("")
         if act:
-            w("**The clock asked for is not the clock that runs.** The ESP32-S3's SPI peripheral divides 80 MHz by an integer, "
-              "so the boards ran: %s. The \"25 MHz\" of every earlier report is **26.67 MHz**. The held-out settings therefore "
-              "land on one new clock (16 MHz, asked as 15 and 18) and on a fit clock again (20 MHz, asked as 22), which checks "
-              "repeatability rather than prediction; the model is fitted and drawn against the actual clock."
-              % ", ".join("%s → %.2f" % (k, v) for k, v in sorted(act.items(), key=lambda kv: int(kv[0]))))
+            ran = ", ".join("%s → %.2f" % (k, v) for k, v in sorted(act.items(), key=lambda kv: int(kv[0])))
+            if (act.get("25") or 0) > 25:
+                w("**The clock asked for is not the clock that runs.** The ESP32-S3's SPI peripheral divides 80 MHz by an "
+                  "integer, so the boards ran: %s. The \"25 MHz\" of every earlier report is **26.67 MHz**, above the "
+                  "LAN8651's 25 MHz maximum (DS60001734F, Table 9-9). The held-out settings land on one new clock (16 MHz, "
+                  "asked as 15 and 18) and on a fit clock again (20 MHz, asked as 22), which checks repeatability rather than "
+                  "prediction; the model is fitted and drawn against the actual clock." % ran)
+            else:
+                w("**The clock asked for is not the clock that runs.** The ESP32-S3's SPI peripheral divides 80 MHz by an "
+                  "integer, and the firmware never lets it exceed the LAN8651's 25 MHz (DS60001734F, Table 9-9), so the boards "
+                  "ran: %s. In spec the fit rests on two clocks (11.43 and 20 MHz) and the held-out settings add one new "
+                  "clock (16 MHz, asked as 15 and 18) and repeat 20 MHz (asked as 22): one prediction, one repeatability "
+                  "check. The model is fitted and drawn against the actual clock." % ran)
             w("")
     w("## 3. CAN-like periodic messages")
     w("")
@@ -406,8 +418,13 @@ def main(path, out):
         w("| run | probes | lost | longest run of lost probes | outage |")
         w("|---|---|---|---|---|")
         outs = []
+        missing = 0
         for j, e in enumerate(rec, 1):
             us = e["us"]
+            if not us:   # the probing board's report never reached the console: no data, not "no outage"
+                missing += 1
+                w("| %d | — | — | — | no data (the prober's report was not captured) |" % j)
+                continue
             lr = longest_lost_run(us)
             outage = lr * (e["probe_ms"] + e["timeout_ms"]) / 1000
             outs.append(outage)
@@ -415,7 +432,9 @@ def main(path, out):
                                                           (e["probe_ms"] + e["timeout_ms"]) / 1000))
         w("")
         w("Outage = the longest run of unanswered probes × (10 ms interval + 100 ms timeout), so ± one probe. "
-          "Mean %.2f s over %d reboots." % (statistics.mean(outs), len(outs)))
+          + ("Mean %.2f s over %d reboots%s." % (statistics.mean(outs), len(outs),
+                                                 " with data (%d without)" % missing if missing else "")
+             if outs else "No reboot has data."))
         w("")
         w("The outage covers the coordinator's own reboot and bring-up (ESP32 boot, LAN8651 driver install, PLCA). Answers resume "
           "as soon as its first beacon goes out; the peer and the converter need no recovery action.")
@@ -432,7 +451,8 @@ def main(path, out):
         ("TO_TIMER sweep", "the converter's TO cannot be set; mismatched TO would measure the mismatch", "two settable nodes"),
         ("collision / error counters", "the guessed MAC counter map was wrong and stalled TX", "the LAN8651 statistics register map"),
         ("CPU load and power", "not instrumented", "FreeRTOS run-time stats build, a power meter"),
-        ("Zenoh ~1000 msg/s receive cap", "cause inside zenoh-pico, not found", "profiling of zenoh-pico's executor"),
+        ("Zenoh small-message rate (~1000 msg/s unbatched)", "found (2026-10-06): the publisher's per-datagram put "
+         "(~1 ms), not the subscriber; batching gives ~5500 msg/s (see the suite report)", "latency of batched puts"),
     ):
         w("| %s | %s | %s |" % (a, b, c))
     w("")

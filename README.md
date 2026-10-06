@@ -10,13 +10,17 @@ PC enp4s0 ─RJ45─ TSN Lab 10Base-T1S Converter ═10BASE-T1S═ TSN Lab LAN86
 The runs below drove the LAN8651 at 26.67 MHz, above its 25 MHz SCLK limit (see [ERRATA.md](ERRATA.md));
 the same suite at 20.00 MHz, the fastest in-spec clock on the ESP32-S3:
 
-| | 20.00 MHz (in spec) | 26.67 MHz (10-02) |
-|---|---|---|
-| onto T1S, no loss | **9.00 Mbit/s** | 9.51 |
-| off T1S, no loss | **8.04 Mbit/s** | 8.96 |
-| UDP RTT 64 B, from ESP-B / from the node | **3.09 / 3.40 ms** | 2.97 / 2.66 |
-| Zenoh pub/sub RTT | **4.9–5.2 ms** | 5.2–5.3 |
-| 60 s soak at 8 Mbit/s, lost (each way) | **0 / 0** | 3 / 0 |
+| | 20.00 MHz, run 1 (14:27) | 20.00 MHz, [run 2](two-esp-20mhz-run2/REPORT.md) (15:38) | 26.67 MHz (10-02) |
+|---|---|---|---|
+| onto T1S, no loss | **9.00 Mbit/s** | **8.51** | 9.51 |
+| off T1S, no loss | **8.04 Mbit/s** | **7.97** | 8.96 |
+| UDP RTT 64 B, from ESP-B | **3.09 ms** | **3.08** | 2.97 |
+| Zenoh pub/sub RTT | **4.9–5.2 ms** | see report | 5.2–5.3 |
+| 60 s soak at 8 Mbit/s, lost (each way) | **0 / 0** | **7 / 0** | 3 / 0 |
+| Zenoh 32 B puts/s, unbatched → batched | — | **944 → 7483** | — |
+
+The two in-spec runs differ by one rate step in the lossless maximum (the sweep steps 0.5 Mbit/s) and by a few
+soak datagrams: quote a range, not one run. Batched Zenoh payload still stops near 4.8 Mbit/s.
 
 Quote these for anything built to the datasheet.
 
@@ -45,7 +49,9 @@ earlier reports is **26.67 MHz**.
 |---|---|
 | **[ERRATA.md](ERRATA.md)** | corrections to the earlier reports (actual SPI clock, sink-rate bias, what is and is not proven) |
 | **[campaign/](campaign/REPORT.md)** | the two-board campaign: repeats, SPI model check, periodic, tail, recovery |
+| **[campaign-20mhz/](campaign-20mhz/REPORT.md)** | the campaign at the in-spec 20 MHz clock: 5 repeats ± CI, SPI model (c = 1.04), CAN-like periodic, 79k-probe tail, recovery |
 | **[plca-csma-repeated/](plca-csma-repeated/REPORT.md)** | PLCA, 5 rounds at 20 MHz with mean ± CI (CSMA/CD rounds pending: the converter's DIP) |
+| **[two-esp-20mhz-run2/](two-esp-20mhz-run2/REPORT.md)** | second in-spec run, with Zenoh batched vs unbatched bulk |
 | **[two-esp-20mhz/](two-esp-20mhz/REPORT.md)** | the same suite at the in-spec 20 MHz SPI clock (2026-10-06): 9 figures, PDF |
 | **[two-esp/](two-esp/REPORT.md)** | the two-ESP run at 26.67 MHz (out of spec): 9 figures, PDF |
 | **[REPORT.md](REPORT.md)** | the combined report with figures (throughput by SPI clock, load sweep, latency, PLCA vs CSMA, gap histograms) |

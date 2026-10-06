@@ -88,7 +88,8 @@ def run(H, out_dir, repeats=5, tail_min=15, quick=False):
         if not A or not B:
             raise RuntimeError("need the T1S node and the W5500 board online with IPs")
         _, a, _ = H.esp("node")
-        R["setup"] = {"node": {"ip": A, "spi": a.get("hat_spi"), "plca": [a.get("hat_plca"), a.get("hat_id"), a.get("hat_count")],
+        R["setup"] = {"node": {"ip": A, "spi": a.get("hat_spi"), "spi_actual": a.get("hat_spi_actual"),
+                               "plca": [a.get("hat_plca"), a.get("hat_id"), a.get("hat_count")],
                                "chip": a.get("hat_chip"), "key": H.esp("node")[0]}, "tx": {"ip": B, "key": H.esp("tx")[0]}}
         for r in ("node", "tx"):
             H.cmd_lines(r, "zenoh pause", r"^zenoh: ", 3, settle=0.05)
@@ -222,6 +223,101 @@ def run(H, out_dir, repeats=5, tail_min=15, quick=False):
     except Exception as e:
         STATE["error"] = str(e)
         R["error"] = str(e)
+    finally:
+        save()
+        for r in ("node", "tx"):
+            H.hat_send("zenoh resume", echo=False, role=r)
+        H.duo["running"] = False
+        STATE.update(running=False, phase=None, step=None)
+    return path
+
+
+def _mode(H, plca):
+    """Switch the T1S node's access method live (no reboot) and say what the chip reports."""
+    H.cmd_lines("node", "plca 0 2" if plca else "csma", r"^plca: ", 4, settle=0.1)
+    time.sleep(3)           # the converter (PLCA follower) loses or regains the beacons
+    lines = H.cmd_lines("node", "status", r"^link: ", 5, settle=0.3)
+    return [t for t in lines if t.startswith(("plca", "link"))]
+
+
+def _phase_set(H, A, B, secs, size, quick):
+    """The 2026-10-01 PLCA-vs-CSMA phases, with ESP-B (W5500, through the converter) in the PC's place."""
+    e = {}
+    e["idle_rtt"] = H.suite_rtt("tx", A, 150 if quick else 300, 64, 3)
+    # peer floods 9 Mbit/s onto T1S; the node's small probes must get onto the same wire
+    dur = 16                # outlasts 100 probes even if every one times out (100 x (5 + 100 ms))
+    H.cmd_lines("node", "sink reset", r"^sink: counters reset", 3, settle=0.05)
+    H.hat_send("blast %s %d %d 9 9" % (A, dur, size), echo=False, role="tx")
+    time.sleep(0.5)
+    e["peer_flood_probe"] = H.suite_rtt("node", B, 100, 64, 5)
+    H.cmd_lines("tx", "status", r"^link: ", dur + 6, settle=0.3)
+    e["peer_flood_sink"] = H.parse_sink(H.cmd_lines("node", "sink", r"^sink: ", 4, settle=0.4))
+    # node floods, peer sends 1 Mbit/s
+    e["node_flood_peer1"] = H.suite_flow("node", "tx", B, secs, size, 0, other=(A, 1))
+    # both flood
+    e["both_flood"] = H.suite_flow("node", "tx", B, secs, size, 0, other=(A, 9))
+    # node alone
+    e["node_alone"] = H.suite_flow("node", "tx", B, secs, size, 0)
+    return e
+
+
+def access(H, out_dir, rounds=5, quick=False, only=None):
+    """PLCA vs CSMA/CD, repeated: rounds alternate the order (P,C / C,P) so drift cannot favour
+    one method. The node's SPI runs in spec (<= 25 MHz, i.e. 20 MHz on the ESP32-S3)."""
+    STATE.update(running=True, phase="access", step="starting", progress=0, file=None, error=None)
+    H.duo["running"] = True
+    R = {"t": time.strftime("%Y-%m-%d %H:%M:%S"), "kind": "access", "rounds": [], "inspec": [], "notes": []}
+    path = os.path.join(out_dir, "access_%s.json" % time.strftime("%Y%m%d_%H%M%S"))
+    STATE["file"] = os.path.basename(path)
+
+    def save():
+        json.dump(R, open(path, "w"), indent=0)
+
+    try:
+        A, B = _ip(H, "node"), _ip(H, "tx")
+        if not A or not B:
+            raise RuntimeError("need the T1S node and the W5500 board online with IPs")
+        _, a, _ = H.esp("node")
+        R["setup"] = {"node": {"ip": A, "spi": a.get("hat_spi"), "spi_actual": a.get("hat_spi_actual"),
+                               "chip": a.get("hat_chip"), "key": H.esp("node")[0]},
+                      "tx": {"ip": B, "key": H.esp("tx")[0]}, "size": 1000}
+        R["only"] = only
+        R["notes"].append("The converter's PLCA is a DIP switch: with it ON and the node on `csma` the converter "
+                          "stops transmitting altogether (no beacons, no fallback; access_20261006_113637), so PLCA and "
+                          "CSMA rounds run as blocks with the DIP set by hand between them (PLCA: DIP 1 ON, "
+                          "converter ID 1 / count 0; CSMA: DIP 1 OFF).")
+        for r in ("node", "tx"):
+            H.cmd_lines(r, "zenoh pause", r"^zenoh: ", 3, settle=0.05)
+        n = 2 if quick else rounds
+        secs = 3 if quick else 6
+        for i in range(n):
+            order = (True, False) if i % 2 == 0 else (False, True)
+            if only:
+                order = (only == "plca",)
+            rnd = {"i": i, "t": time.strftime("%H:%M:%S")}
+            for k, plca in enumerate(order):
+                name = "plca" if plca else "csma"
+                _step("round %d/%d: %s" % (i + 1, n, name), (i + k / len(order)) / n * 0.8)
+                rnd[name + "_status"] = _mode(H, plca)
+                rnd[name] = _phase_set(H, A, B, secs, 1000, quick)
+                save()
+            R["rounds"].append(rnd)
+            save()
+        # the in-spec headline numbers (PLCA on), repeated, so nothing quoted rests on 26.67 MHz
+        for i in range(0 if only == "csma" else 2 if quick else 3):
+            _step("in-spec headline %d" % (i + 1), 0.8 + 0.2 * i / 3)
+            e = {"i": i}
+            e["rtt64_tx"] = _rtt(H, "tx", A, 300, 64, 3)
+            e["rtt1472_tx"] = _rtt(H, "tx", A, 200, 1472, 3)
+            e["off_max"] = _tput(H, "node", "tx", B, secs, 1472, 0)
+            e["onto_7_5"] = _tput(H, "tx", "node", A, secs, 1472, 7.5)
+            e["onto_9_0"] = _tput(H, "tx", "node", A, secs, 1472, 9.0)
+            R["inspec"].append(e)
+            save()
+        STATE["progress"] = 100
+    except Exception as ex:
+        STATE["error"] = str(ex)
+        R["error"] = str(ex)
     finally:
         save()
         for r in ("node", "tx"):
