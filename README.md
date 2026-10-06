@@ -49,6 +49,7 @@ earlier reports is **26.67 MHz**.
 |---|---|
 | **[ERRATA.md](ERRATA.md)** | corrections to the earlier reports (actual SPI clock, sink-rate bias, what is and is not proven) |
 | **[campaign/](campaign/REPORT.md)** | the two-board campaign: repeats, SPI model check, periodic, tail, recovery |
+| **[time-sync/](time-sync/REPORT.md)** | time sync over T1S: two-way transfer, LAN8651 hardware stamps, a PI servo on its clock -- locked to ESP-B within σ 12–15 µs |
 | **[campaign-20mhz/](campaign-20mhz/REPORT.md)** | the campaign at the in-spec 20 MHz clock: 5 repeats ± CI, SPI model (c = 1.04), CAN-like periodic, 79k-probe tail, recovery |
 | **[plca-csma-repeated/](plca-csma-repeated/REPORT.md)** | PLCA, 5 rounds at 20 MHz with mean ± CI (CSMA/CD rounds pending: the converter's DIP) |
 | **[two-esp-20mhz-run2/](two-esp-20mhz-run2/REPORT.md)** | second in-spec run, with Zenoh batched vs unbatched bulk |
