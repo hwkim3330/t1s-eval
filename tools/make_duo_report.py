@@ -88,6 +88,15 @@ def zenoh_abstract(R):
             % (rng, best or float("nan")))
 
 
+def spi_actual(setup):
+    """The SCLK that ran. Recorded since 2026-10-06; before that `spi 25` ran 80/3 = 26.67 MHz
+    (out of the LAN8651's spec), and the other settings the integer dividers below."""
+    n = setup["node"]
+    if n.get("spi_actual"):
+        return float(n["spi_actual"])
+    return {25: 26.67, 24: 26.67, 23: 26.67, 22: 20.0, 20: 20.0, 18: 16.0, 15: 16.0, 12: 11.43}.get(n.get("spi"), float(n.get("spi") or 0))
+
+
 def main(path, out):
     R = json.load(open(path))
     os.makedirs(out, exist_ok=True)
@@ -386,8 +395,8 @@ def main(path, out):
     w("")
     w("```")
     w("ESP-A: ESP32-S3 + LAN8651 HAT        converter               ESP-B: ESP32-S3 + W5500")
-    w("SPI %-3s MHz, PLCA %s of %s%-13s  LAN8670 + LAN9355       W5500 SPI 40 MHz, polled 1 ms"
-      % (st["node"]["spi"], st["node"]["id"], st["node"]["count"], " (coord.)" if st["node"]["id"] == 0 else ""))
+    w("SPI %-5s MHz, PLCA %s of %s%-11s  LAN8670 + LAN9355       W5500 SPI 40 MHz, polled 1 ms"
+      % ("%.2f" % spi_actual(st), st["node"]["id"], st["node"]["count"], " (coord.)" if st["node"]["id"] == 0 else ""))
     w("%-15s  ══ 10BASE-T1S ══  [T1S | TX]  ── 100BASE-TX ──  %s" % (st["node"]["ip"], st["tx"]["ip"]))
     w("```")
     w("")
@@ -442,7 +451,9 @@ def main(path, out):
         w("")
     # per payload byte, per round trip: each link is crossed twice
     per_byte = {"10BASE-T1S (0.8 µs/B)": 2 * 0.8, "100BASE-TX (0.08 µs/B)": 2 * 0.08,
-                "LAN8651 SPI 26.67 MHz actual (0.30 µs/B)": 2 * 8 / 26.67, "W5500 SPI 40 MHz (0.2 µs/B)": 2 * 0.2}
+                "LAN8651 SPI %.2f MHz (%.2f µs/B)" % (spi_actual(R["setup"]), 8 / spi_actual(R["setup"])):
+                    2 * 8 / spi_actual(R["setup"]),
+                "W5500 SPI 40 MHz (0.2 µs/B)": 2 * 0.2}
     pred = sum(per_byte.values())
     meas = statistics.mean(v[0] for v in fits.values()) if fits else float("nan")
     w("**Reading it.** Every payload byte crosses each link twice per round trip. Serialisation alone predicts "

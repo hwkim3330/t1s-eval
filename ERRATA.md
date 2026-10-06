@@ -16,3 +16,8 @@ measured; read their numbers through these corrections.
 Still open (needs a second LAN8651 node or more equipment): more than two PLCA nodes, a run without the converter,
 a 100BASE-TX-only baseline, cable length / stubs, TO_TIMER, collision counters, CPU load / power, the Zenoh ~1000 msg/s
 receive cap.
+
+**2026-10-06, later:** 26.67 MHz is also **above the LAN8651's 25 MHz SCLK maximum** (DS60001734F,
+Table 9-9). The firmware now never exceeds it (20.00 MHz on the ESP32-S3), and the two-board suite
+was rerun there: [two-esp-20mhz/](two-esp-20mhz/REPORT.md) — onto T1S 9.00, off T1S 8.04 Mbit/s
+lossless, 64 B RTT 3.09 / 3.40 ms, soak 0 / 0 lost. Numbers taken at "25 MHz" before this date are out of spec.

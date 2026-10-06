@@ -6,6 +6,20 @@ Measured results from the 10BASE-T1S bench and what they mean for the next HAT.
 PC enp4s0 ─RJ45─ TSN Lab 10Base-T1S Converter ═10BASE-T1S═ TSN Lab LAN8651 HAT ─SPI─ ESP32-S3 (t1s_node)
 ```
 
+**2026-10-06: in-spec rerun → [two-esp-20mhz/REPORT.pdf](two-esp-20mhz/REPORT.pdf)** ([markdown](two-esp-20mhz/REPORT.md)).
+The runs below drove the LAN8651 at 26.67 MHz, above its 25 MHz SCLK limit (see [ERRATA.md](ERRATA.md));
+the same suite at 20.00 MHz, the fastest in-spec clock on the ESP32-S3:
+
+| | 20.00 MHz (in spec) | 26.67 MHz (10-02) |
+|---|---|---|
+| onto T1S, no loss | **9.00 Mbit/s** | 9.51 |
+| off T1S, no loss | **8.04 Mbit/s** | 8.96 |
+| UDP RTT 64 B, from ESP-B / from the node | **3.09 / 3.40 ms** | 2.97 / 2.66 |
+| Zenoh pub/sub RTT | **4.9–5.2 ms** | 5.2–5.3 |
+| 60 s soak at 8 Mbit/s, lost (each way) | **0 / 0** | 3 / 0 |
+
+Quote these for anything built to the datasheet.
+
 **2026-10-02: the PC is gone from the data path.** A second ESP32-S3 (W5500) took its place:
 
 ```
@@ -31,7 +45,8 @@ earlier reports is **26.67 MHz**.
 |---|---|
 | **[ERRATA.md](ERRATA.md)** | corrections to the earlier reports (actual SPI clock, sink-rate bias, what is and is not proven) |
 | **[campaign/](campaign/REPORT.md)** | the two-board campaign: repeats, SPI model check, periodic, tail, recovery |
-| **[two-esp/](two-esp/REPORT.md)** | the two-ESP run above: 7 figures, PDF |
+| **[two-esp-20mhz/](two-esp-20mhz/REPORT.md)** | the same suite at the in-spec 20 MHz SPI clock (2026-10-06): 9 figures, PDF |
+| **[two-esp/](two-esp/REPORT.md)** | the two-ESP run at 26.67 MHz (out of spec): 9 figures, PDF |
 | **[REPORT.md](REPORT.md)** | the combined report with figures (throughput by SPI clock, load sweep, latency, PLCA vs CSMA, gap histograms) |
 | **[DESIGN_LESSONS.md](DESIGN_LESSONS.md)** | requirements for the next HAT (Rev C), each with its evidence, plus acceptance tests |
 | [PLCA_vs_CSMA_20261001.md](PLCA_vs_CSMA_20261001.md) | the comparison table |
