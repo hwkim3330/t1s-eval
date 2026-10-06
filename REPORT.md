@@ -1,5 +1,7 @@
 # 10BASE-T1S bench report
 
+> **Corrections (2026-10-06):** read this through [ERRATA.md](ERRATA.md) — the "25 MHz" SPI clock is 26.67 MHz actual, and board-measured rates read ≈0.5 % high.
+
 _Generated 2026-10-01 15:43 by `pc/t1s_console/make_report.py` from `data/`._
 
 ```

@@ -1,5 +1,7 @@
 # PLCA vs CSMA/CD on one 10BASE-T1S segment — 2026-10-01
 
+> **Corrections (2026-10-06):** read this through [ERRATA.md](ERRATA.md) — the "25 MHz" SPI clock is 26.67 MHz actual, and board-measured rates read ≈0.5 % high.
+
 Same bench, same test, only the access method changed:
 
 ```

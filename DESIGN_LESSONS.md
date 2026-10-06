@@ -1,5 +1,7 @@
 # What the bench says the next T1S HAT (Rev C) must do
 
+> **Corrections (2026-10-06):** read this through [ERRATA.md](ERRATA.md) — the "25 MHz" SPI clock is 26.67 MHz actual, and board-measured rates read ≈0.5 % high.
+
 > **Outcome (2026-10-01): Rev C is in `elite-t1s-hat` (commit fa23fd0, Rev B kept at tag
 > `rev-b`).** Decided for cost: **no physical switches** — node ID/count stay in firmware
 > (console, NVS, Zenoh) and termination stays an order-time choice, so §3 and §4 below were

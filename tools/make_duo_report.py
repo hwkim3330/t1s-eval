@@ -442,7 +442,7 @@ def main(path, out):
         w("")
     # per payload byte, per round trip: each link is crossed twice
     per_byte = {"10BASE-T1S (0.8 µs/B)": 2 * 0.8, "100BASE-TX (0.08 µs/B)": 2 * 0.08,
-                "LAN8651 SPI 25 MHz (0.32 µs/B)": 2 * 0.32, "W5500 SPI 40 MHz (0.2 µs/B)": 2 * 0.2}
+                "LAN8651 SPI 26.67 MHz actual (0.30 µs/B)": 2 * 8 / 26.67, "W5500 SPI 40 MHz (0.2 µs/B)": 2 * 0.2}
     pred = sum(per_byte.values())
     meas = statistics.mean(v[0] for v in fits.values()) if fits else float("nan")
     w("**Reading it.** Every payload byte crosses each link twice per round trip. Serialisation alone predicts "

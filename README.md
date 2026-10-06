@@ -29,12 +29,13 @@ earlier reports is **26.67 MHz**.
 
 | file | what |
 |---|---|
+| **[ERRATA.md](ERRATA.md)** | corrections to the earlier reports (actual SPI clock, sink-rate bias, what is and is not proven) |
 | **[campaign/](campaign/REPORT.md)** | the two-board campaign: repeats, SPI model check, periodic, tail, recovery |
 | **[two-esp/](two-esp/REPORT.md)** | the two-ESP run above: 7 figures, PDF |
 | **[REPORT.md](REPORT.md)** | the combined report with figures (throughput by SPI clock, load sweep, latency, PLCA vs CSMA, gap histograms) |
 | **[DESIGN_LESSONS.md](DESIGN_LESSONS.md)** | requirements for the next HAT (Rev C), each with its evidence, plus acceptance tests |
 | [PLCA_vs_CSMA_20261001.md](PLCA_vs_CSMA_20261001.md) | the comparison table |
-| `t1s_hat_*.md` | full tests: 1503 = SPI 12 MHz, 1508 = 20 MHz, 1511 = 25 MHz |
+| `t1s_hat_*.md` | full tests: 1503 = SPI 12 MHz asked (11.43 actual), 1508 = 20 MHz, 1511 = 25 MHz asked (26.67 actual) |
 | `t1s_plca_*.md` | PLCA demos: **1538 = CSMA/CD run**, 1527 = PLCA run; 1525 superseded (its PC → HAT counter was read during the node's own blast and is invalid) |
 | `data/` | raw results (`fulltests.json`, `demos.json`) |
 | `tools/make_report.py` | regenerates `REPORT.md` and `figs/` from `data/` (and from the console's cache when present) |
