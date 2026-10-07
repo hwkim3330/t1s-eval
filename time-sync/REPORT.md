@@ -45,5 +45,5 @@ The node asks ESP-B 16 times a second (its request and the reply stamped in hard
 ## 3. Limits
 
 - One side only has hardware stamps; the master is software (ESP-B) and the path crosses a store-and-forward converter whose queueing is not symmetric. Two LAN8651 nodes (hardware at both ends, no converter) are the next measurement; the servo already uses a master's hardware follow-up when it gets one.
-- No reference: offsets are precision, not accuracy. A PPS on DIOA0 from each node and an oscilloscope would give accuracy directly (the firmware has `ptp pps`; Rev C ties DIOA to ground).
+- No reference: offsets are precision, not accuracy. The 1PPS on DIOA4 from each node and an oscilloscope would give accuracy directly (firmware `ptp pps on`; HAT Rev D routes it to TP1, Rev C ties DIOA to ground).
 - Timestamps on every received frame cost 6 % of receive throughput (8.75 → 8.20 Mbit/s at 1472 B), so they are a build option (`-DLAN865X_FRAME_TIMESTAMPS`).
